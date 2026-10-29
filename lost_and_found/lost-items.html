@@ -235,14 +235,15 @@
                 <button type="button" class="cc-modal-close-btn" id="closeDeleteModalBtn" aria-label="Cancel">✕</button>
             </div>
             <div class="cc-modal-body">
-                <p id="deletePromptText" style="font-size: 14px; color: var(--text-body); margin: 0; line-height: 1.5;">
+                <div id="deleteModalLegacyCallout" style="display: none; margin-bottom: 14px; padding: 12px 14px; background: rgba(234, 88, 12, 0.08); border-left: 3px solid #f97316; border-radius: 6px; font-size: 13px; color: var(--text-body); line-height: 1.5;"></div>
+                <p id="deletePromptText" style="font-size: 14px; color: var(--text-body); margin: 0 0 14px 0; line-height: 1.5;">
                     To securely delete this report, please enter the <strong>Contact Number</strong> or <strong>Roll Number</strong> provided when reporting.
                 </p>
                 <div class="cc-verify-input-group" id="deleteVerifyInputGroup">
-                    <label for="deleteVerifyInput">Verification Credential</label>
+                    <label id="deleteVerifyLabel" for="deleteVerifyInput">Verification Credential</label>
                     <input type="text" id="deleteVerifyInput" placeholder="Enter contact or roll number" autocomplete="off">
                 </div>
-                <div id="deleteModalError" style="display: none; color: #E63946; font-size: 13px; font-weight: 600;"></div>
+                <div id="deleteModalError" style="display: none; color: #E63946; font-size: 13px; font-weight: 600; margin-top: 10px;"></div>
             </div>
             <div class="cc-modal-footer">
                 <button type="button" class="cc-btn-secondary" id="cancelDeleteBtn">Cancel</button>
@@ -628,6 +629,16 @@
             }, 3500);
         }
 
+        
+        function isLegacyRecord(item) {
+            if (!item) return false;
+            const hasUid = Boolean(item.user_uid);
+            const roll = String(item.roll_number || "").trim().toLowerCase();
+            const hasRoll = Boolean(roll && roll !== "n/a" && roll !== "not provided" && roll !== "null");
+            const contact = String(item.contact_number || "").trim().toLowerCase();
+            const hasContact = Boolean(contact && contact !== "n/a" && contact !== "not provided" && contact.replace(/\D/g, "").length >= 7);
+            return !hasUid && !hasRoll && !hasContact;
+        }
         function openDetailsModal(item) {
             currentSelectedItem = item;
             const modal = document.getElementById("detailsModal");
@@ -690,11 +701,11 @@
                 rollEl.textContent = (item.roll_number && item.roll_number !== "N/A") ? item.roll_number : "Not provided";
             }
 
-            const isLegacy = (!item.user_uid && (!item.roll_number || item.roll_number === "N/A" || !item.roll_number.trim()) && (!item.contact_number || item.contact_number === "N/A" || !item.contact_number.trim()));
+            const isLegacy = isLegacyRecord(item);
             const legacyNoticeEl = document.getElementById("detailsModalLegacyNotice");
             if (legacyNoticeEl) {
                 if (isLegacy) {
-                    legacyNoticeEl.innerHTML = "ℹ️ <strong>Legacy Report:</strong> This report was filed before verification requirements. For administrative removal, please visit the <strong>Campus Help Desk (Library 1st Floor)</strong> or email <a href=\"mailto:admin@campusconnect.edu?subject=Report%20Removal%20Request%20%23" + encodeURIComponent(item.serial_number || "") + "\" style=\"color: #0077B6; font-weight: 600;\">admin@campusconnect.edu</a>.";
+                    legacyNoticeEl.innerHTML = "🏛️ <strong>Legacy Report (Pre-verification):</strong> This report was filed prior to student verification requirements. Original reporter contact details are not on file. For ownership inquiries or administrative removal, please visit the <strong>Campus Help Desk (Library 1st Floor)</strong> or email <a href=\"mailto:admin@campusconnect.edu?subject=Report%20Removal%20Request%20%23" + encodeURIComponent(item.serial_number || "") + "\" style=\"color: #0077B6; font-weight: 600;\">admin@campusconnect.edu</a>.";
                     legacyNoticeEl.style.display = "block";
                 } else {
                     legacyNoticeEl.style.display = "none";
@@ -703,12 +714,23 @@
 
             const contactEl = document.getElementById("detailsModalContact");
             if (contactEl) {
-                const contactVal = (item.contact_number && item.contact_number !== "N/A") ? item.contact_number : "Not provided";
-                if (contactVal !== "Not provided" && /^\d{7,15}$/.test(contactVal.replace(/\D/g, ""))) {
-                    contactEl.innerHTML = `<a href="tel:${escapeHTML(contactVal)}">${escapeHTML(contactVal)}</a>`;
+                if (isLegacy) {
+                    contactEl.innerHTML = '<span style="color: var(--text-muted); font-size: 13px;">Campus Help Desk (Library 1st Floor)</span>';
                 } else {
-                    contactEl.textContent = contactVal;
+                    const contactVal = (item.contact_number && item.contact_number !== "N/A") ? item.contact_number : "Not provided";
+                    if (contactVal !== "Not provided" && /^\d{7,15}$/.test(contactVal.replace(/\D/g, ""))) {
+                        contactEl.innerHTML = `<a href="tel:${escapeHTML(contactVal)}">${escapeHTML(contactVal)}</a>`;
+                    } else {
+                        contactEl.textContent = contactVal;
+                    }
                 }
+            }
+
+            if (isLegacy) {
+                const personEl = document.getElementById("detailsModalPerson");
+                const rollEl = document.getElementById("detailsModalRoll");
+                if (personEl) personEl.textContent = "Campus Student (Legacy Record)";
+                if (rollEl) rollEl.textContent = "Not recorded (Pre-verification)";
             }
 
             modal.classList.add("active");
@@ -731,16 +753,51 @@
             currentSelectedCard = cardEl || document.querySelector(`.item-card[data-serial="${item.serial_number}"]`);
 
             const modal = document.getElementById("deleteModal");
+            const titleEl = document.getElementById("deleteModalTitle");
+            const promptEl = document.getElementById("deletePromptText");
+            const labelEl = document.getElementById("deleteVerifyLabel");
             const input = document.getElementById("deleteVerifyInput");
+            const confirmBtn = document.getElementById("confirmDeleteBtn");
+            const legacyNotice = document.getElementById("deleteModalLegacyCallout");
             const err = document.getElementById("deleteModalError");
+
             if (err) err.style.display = "none";
             if (input) {
                 input.value = "";
-                setTimeout(function() { input.focus(); }, 100);
             }
+
+            const isLegacy = isLegacyRecord(item);
+            if (isLegacy) {
+                if (titleEl) titleEl.innerHTML = "🗑️ Remove Legacy Report";
+                if (promptEl) promptEl.innerHTML = "This report was submitted before student verification credentials were required. To prevent unauthorized deletions, removal requires <strong>Campus Administrator Authorization</strong>.";
+                if (labelEl) labelEl.textContent = "Administrator Passkey";
+                if (input) {
+                    input.type = "password";
+                    input.placeholder = "Enter campus administrator passkey";
+                }
+                if (confirmBtn) confirmBtn.textContent = "Authorize & Remove";
+                if (legacyNotice) {
+                    legacyNotice.innerHTML = "ℹ️ <strong>Student Notice:</strong> If this is your item and you do not have staff credentials, please visit the <strong>Campus Help Desk (Library 1st Floor)</strong> or email <a href=\"mailto:admin@campusconnect.edu?subject=Legacy%20Item%20Removal%20%23" + encodeURIComponent(item.serial_number || "") + "\" style=\"color: #0077B6; font-weight: 600;\">admin@campusconnect.edu</a>.";
+                    legacyNotice.style.display = "block";
+                }
+            } else {
+                if (titleEl) titleEl.innerHTML = "🗑️ Delete Report";
+                if (promptEl) promptEl.innerHTML = "To securely delete this report, please enter the <strong>Contact Number</strong> or <strong>Roll Number</strong> provided when reporting.";
+                if (labelEl) labelEl.textContent = "Verification Credential (Contact or Roll Number)";
+                if (input) {
+                    input.type = "text";
+                    input.placeholder = "Enter contact or roll number (or admin key)";
+                }
+                if (confirmBtn) confirmBtn.textContent = "Confirm Delete";
+                if (legacyNotice) {
+                    legacyNotice.style.display = "none";
+                }
+            }
+
             if (modal) {
                 modal.classList.add("active");
                 document.body.style.overflow = "hidden";
+                setTimeout(function() { if (input) input.focus(); }, 100);
             }
         }
 
@@ -810,9 +867,12 @@
                 const verifyVal = input ? input.value.trim() : "";
                 const errEl = document.getElementById("deleteModalError");
 
+                const isLegacy = isLegacyRecord(currentSelectedItem);
                 if (!verifyVal) {
                     if (errEl) {
-                        errEl.textContent = "Please enter your contact or roll number to verify ownership.";
+                        errEl.textContent = isLegacy
+                            ? "Please enter the administrator passkey to authorize removal."
+                            : "Please enter your contact or roll number to verify ownership.";
                         errEl.style.display = "block";
                     }
                     if (input) input.focus();
@@ -833,11 +893,15 @@
                         headers: {
                             "Content-Type": "application/json",
                             "X-Reporter-Contact": verifyVal,
-                            "X-Reporter-Roll": verifyVal
+                            "X-Reporter-Roll": verifyVal,
+                            "X-Admin-Token": verifyVal
                         },
                         body: JSON.stringify({
                             contact_number: verifyVal,
-                            roll_number: verifyVal
+                            roll_number: verifyVal,
+                            admin_key: verifyVal,
+                            admin_token: verifyVal,
+                            verification_credential: verifyVal
                         })
                     });
 
@@ -850,7 +914,7 @@
                     // Success!
                     closeDeleteModal();
                     closeDetailsModal();
-                    showToast("Report deleted successfully.", "success");
+                    showToast(data.message || "Report deleted successfully.", "success");
 
                     // Animate and remove card from DOM
                     if (currentSelectedCard) {
@@ -878,12 +942,13 @@
                 } catch (delError) {
                     console.error("Deletion failure:", delError);
                     if (errEl) {
-                        errEl.textContent = delError.message || "Failed to delete report.";
+                        let msg = delError.message || "Failed to delete report.";
+                        errEl.innerHTML = `<div>${escapeHTML(msg)}</div>` + (isLegacy ? `<div style="margin-top: 8px; font-size: 12px; font-weight: normal; color: var(--text-muted);">Students without administrative credentials may visit the <strong>Campus Help Desk (Library 1st Floor)</strong> for assistance.</div>` : "");
                         errEl.style.display = "block";
                     }
                 } finally {
                     confirmDeleteBtn.disabled = false;
-                    confirmDeleteBtn.textContent = "Confirm Delete";
+                    confirmDeleteBtn.textContent = isLegacy ? "Authorize & Remove" : "Confirm Delete";
                 }
             });
         }

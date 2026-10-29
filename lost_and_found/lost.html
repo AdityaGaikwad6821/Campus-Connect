@@ -664,6 +664,17 @@
                 >
 
 
+                <!-- REPORTER NAME -->
+
+                <input
+                    type="text"
+                    id="reporterName"
+                    name="person_name"
+                    placeholder="Your Name (e.g. Aarav Sharma — or leave blank for Campus Student)"
+                    maxlength="100"
+                >
+
+
                 <!-- ROLL NUMBER -->
 
                 <input
@@ -1630,6 +1641,11 @@
                             .trim();
 
 
+                    const reporterNameInput =
+                        document.getElementById("reporterName");
+                    const reporterName =
+                        reporterNameInput ? reporterNameInput.value.trim() : "";
+
                     const rollInput =
                         document.getElementById("rollNumber");
                     const rollNumber =
@@ -1728,6 +1744,12 @@
                         formData.append(
                             "item_name",
                             itemName
+                        );
+
+
+                        formData.append(
+                            "person_name",
+                            reporterName || "Campus Student"
                         );
 
 
