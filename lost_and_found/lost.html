@@ -1652,17 +1652,7 @@
 
 
 
-                    // =================================================
-                    // AUTHENTICATION CHECK
-                    // =================================================
-
-                    if (window.CampusAuth && !window.CampusAuth.isLoggedIn()) {
-                        const doLogin = confirm("You must be signed in to submit a Lost & Found report. Would you like to sign in now?");
-                        if (doLogin) {
-                            window.location.href = "../Main/signin.html?return=" + encodeURIComponent(window.location.href);
-                        }
-                        return;
-                    }
+                    // Open student reporting (no forced sign-in required)
 
                     // =================================================
                     // VALIDATION
